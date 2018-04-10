@@ -396,8 +396,9 @@ sprintf( xm_debugstr, "        Got %u\n", temp_uint8 );
 xm_stdout(xm_debugstr);
 sprintf( xm_debugstr, "        Float %f\n", temp_float );			
 xm_stdout(xm_debugstr);
-			sample->volume = 1.0f;
-			//sample->volume = temp_float;
+			//sample->volume = 1.0f; // This works ok
+			sample->volume = temp_float; // Using a temp float. This breaks it
+			//sample->volume = (float)READ_U8(offset + 12) / (float)0x40; // Original code. This breaks it
 xm_stdout( "      Get sample->finetune\n" );
 			sample->finetune = (int8_t)READ_U8(offset + 13);
 
