@@ -77,9 +77,12 @@ The following is a list of broad changes to the original code to support the Tee
 ## Authors
 
 * **Romain "Artefact2" Dalmaso** - *Initial work* - [artefact2@gmail.com](mailto:artefact2@gmail.com)
+* **Dan Spencer** - *Initial work contributor* - [dan@atomicpotato.net](mailto:dan@atomicpotato.net)
 * **Peter "Projectitis" Vullings** - *Teensy port* - [peter@projectitis.com](mailto:peter@projectitis.com)
 
 ## License
+
+The Teensy port is covered by the same WTF licence as the original work this is based on.
 
 This program is free software. It comes without any warranty, to the extent permitted by applicable law. You can redistribute it and/or modify it under the terms of the Do What The Fuck You Want To Public License, Version 2, as published by Sam Hocevar. See [http://sam.zoy.org/wtfpl/COPYING](http://sam.zoy.org/wtfpl/COPYING) for more details.
 
