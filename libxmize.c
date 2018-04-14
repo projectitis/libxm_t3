@@ -45,7 +45,7 @@ static size_t zero_waveforms(xm_context_t* ctx) {
  * Convert xm module to libxmlized version and output as a byte array to serial. This is an
  * 'unwrapped' version of the module that can be stored in readonly memory.
  **/
-void xm_libxmize( const char* moddata, uint16_t moddata_size ){
+void xm_libxmize( const char* moddata, uint32_t moddata_size ){
 	xm_context_t* ctx;
 	size_t i, j, sz;
 	char outstr[255];

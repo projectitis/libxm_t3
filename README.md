@@ -51,7 +51,7 @@ void loop() {
 
 ## Examples
 
-The included examples use a module called [Shooting star](https://modarchive.org/index.php?request=view_by_moduleid&query=133691) by dalexy. This mod is used solely for the purposes of demonstrating the XM player on Teensy. If you wish to use this mod in your own projects or commercially you'll need to seek teh permission of the copyright holder.
+The included examples use a module called [Shooting star](https://modarchive.org/index.php?request=view_by_moduleid&query=133691) by dalexy. This mod is used solely for the purposes of demonstrating the XM player on Teensy. If you wish to use this mod in your own projects or commercially you'll need to seek the permission of the copyright holder.
 	
 There are several examples included:
 	
