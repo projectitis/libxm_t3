@@ -58,6 +58,22 @@ There are several examples included:
 * **example01_play_xm** Loads and plays an XM module in original format. 106kB of flash and 126kB of RAM used
 * **example02_play_xmize** Loads and plays an XM module in libxmize format. 104kB of flash and 10kB of RAM used
 
+## Teensy port details
+
+The following is a list of broad changes to the original code to support the Teensy microprocessor board:
+	
+* Ensure structs aligned on word boundaries to avoid unaligned reads
+* Changed stdout debug functions to use serial
+* Changed libxmize code to outout header file code to serial instead of save a file
+* Thanks to Artefact2, wrote a libxmize loader that uses 90% less RAM for playback
+* Added a player based on IntervalTimer and ring buffer
+
+### Todo
+
+* Implement seek (jumping to arbitrary parts of the song)
+* Loading from SD card
+* More examples
+
 ## Authors
 
 * **Romain "Artefact2" Dalmaso** - *Initial work* - [artefact2@gmail.com](mailto:artefact2@gmail.com)
