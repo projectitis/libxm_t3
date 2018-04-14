@@ -51,7 +51,7 @@ static volatile uint16_t _bufferavail;	// available samples
  * Initialise the mod player
  * @param	moddata		The mod data as a libxmized format (non-delta coded)
  **/
-void xm_player_init( const char* moddata ){
+void xm_player_xmize( const char* moddata ){
 	if (_context) return;
 	
 	// Create context
@@ -61,7 +61,25 @@ void xm_player_init( const char* moddata ){
 		XM_SAMPLE_RATE
 	);
 	// Create buffer
-	_bufferlen = uint16_t(XM_SAMPLE_RATE / 240);	// Number of sample pairs (L+R)
+	_bufferlen = uint16_t(XM_SAMPLE_RATE / 480);	// Number of sample pairs (L+R)
+	_buffersize = _bufferlen * 2;					// Size of buffer in samples
+	_buffer = new float[ _buffersize ];
+	_buffertail = 0;								// We read data from tail
+	_bufferhead = 0;								// We put data in from head (until we reach tail)
+	_bufferavail = 0;								// No samples data available yet
+}
+void xm_player_xm( const char* moddata, uint32_t moddata_size ){
+	if (_context) return;
+	
+	// Create context
+	xm_create_context_safe(
+		&_context,
+		moddata,
+		moddata_size,
+		XM_SAMPLE_RATE
+	);
+	// Create buffer
+	_bufferlen = uint16_t(XM_SAMPLE_RATE / 480);	// Number of sample pairs (L+R)
 	_buffersize = _bufferlen * 2;					// Size of buffer in samples
 	_buffer = new float[ _buffersize ];
 	_buffertail = 0;								// We read data from tail
@@ -84,10 +102,10 @@ void xm_player_exit( void ){
  **/
 static void xm_timer_interrupt( void ){
 	// XXX: Is this the correct way to handle empty buffer?
-	if (!_bufferavail) return;
+	//if (!_bufferavail) return;
 	
-	uint16_t l_smp = 2048 + (uint16_t)((float)_buffer[_buffertail++] * 2048);
-	uint16_t r_smp = 2048 + (uint16_t)((float)_buffer[_buffertail++] * 2048);
+	int16_t l_smp = 2048 + (_buffer[_buffertail++] * 20 * 4096);
+	int16_t r_smp = 2048 + (_buffer[_buffertail++] * 20 * 4096);
 	l_smp = l_smp<0?0:l_smp>4095?4095:l_smp; // Clamp to 12 bit range
 	r_smp = r_smp<0?0:r_smp>4095?4095:r_smp; // Clamp to 12 bit range
 	#ifdef XM_STEREO
@@ -136,11 +154,12 @@ void xm_player_stop( void ){
  * even while the player is stopped, though it is safe not to call update
  * if the player is stopped.
  */
-void xm_player_update( void ){
+uint16_t xm_player_update( void ){
 	// Check ringbuffer full
-	if (_bufferavail==_buffersize) return;
+	if (_bufferavail==_buffersize) return 0;
 	
 	uint16_t numpairs;
+	uint16_t numpairs2 = 0;
 	// Available space doesn't loop end of ring
 	if (_buffertail>_bufferhead){
 		numpairs = (_buffertail - _bufferhead) >> 1;
@@ -151,11 +170,12 @@ void xm_player_update( void ){
 		numpairs = (_buffersize - _bufferhead) >> 1;
 		xm_generate_samples( _context, (float*)(_buffer+_bufferhead), numpairs);
 		// Samples between start and tail
-		numpairs = _buffertail >> 1;
-		xm_generate_samples( _context, _buffer, numpairs);
+		numpairs2 = _buffertail >> 1;
+		xm_generate_samples( _context, _buffer, numpairs2);
 	}
 	_bufferhead = _buffertail;
 	_bufferavail = _buffersize;
+	return numpairs + numpairs2;
 }
 
 /**
@@ -171,4 +191,50 @@ void xm_player_update( void ){
  */
 void xm_player_jump( uint8_t location, bool wait ){
 	
+}
+
+/**
+ * Dump information about the loaded module to serial.
+ **/
+void xm_player_info( boolean verbose ){
+	Serial.println("### Dumping module information");
+	#ifdef XM_STRINGS
+		Serial.printf("  Module name:%s\n", _context->module->name );
+		Serial.printf("  Tracker name:%s\n", _context->module->trackername );
+	#else
+		Serial.println("  Strings not supported (module, instrument and sample names)");
+	#endif
+	
+	Serial.printf("  Channels:%u\n", _context->module.num_channels );
+	Serial.printf("  Patterns:%u\n", _context->module.num_patterns );
+	Serial.printf("  Instruments:%u\n", _context->module.num_instruments );
+	Serial.printf("  Tempo:%u\n", _context->tempo );
+	Serial.printf("  BPM:%u\n", _context->bpm );
+	Serial.println("");
+	Serial.printf("  Global volume:%1.5f\n", _context->global_volume );
+	Serial.printf("  Amplification:%1.5f\n", _context->amplification );
+	
+	Serial.println("");
+	for(uint16_t i = 0; i < _context->module.num_channels; ++i) {
+		Serial.printf("  ## Channel %u\n", i);
+		Serial.printf("    Volume:%u\n", _context->channels[i].volume );
+		Serial.printf("    Panning:%u\n", _context->channels[i].panning );
+	}
+	
+	Serial.println("");
+	for(uint16_t i = 0; i < _context->module.num_instruments; ++i) {
+		Serial.printf("  ## Instrument %u\n", i);
+		#ifdef XM_STRINGS
+			Serial.printf("    Instrument name:%s\n", _context->module.instruments[i].name );
+		#endif
+		Serial.printf("    Samples:%u\n", _context->module.instruments[i].num_samples );
+		for(uint16_t j = 0; j < _context->module.instruments[i].num_samples; ++j) {
+			Serial.printf("    # Sample %u\n", j);
+			#ifdef XM_STRINGS
+				Serial.printf("      Sample name:%s\n", _context->module.instruments[i].sample[j]->name );
+			#endif
+			Serial.printf("      Length:%u\n", _context->module.instruments[i].samples[j].length );
+			Serial.printf("      Volume:%1.5f\n", _context->module.instruments[i].samples[j].volume );
+		}
+	}
 }

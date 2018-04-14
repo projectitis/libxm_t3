@@ -290,6 +290,8 @@ struct xm_context_s {
 
 /* ----- Internal API ----- */
 
+#define PAD_TO_WORD(size) ((size + 3) & ~0x03)
+
 /** Check the module data for errors/inconsistencies.
  *
  * @returns 0 if everything looks OK. Module should be safe to load.

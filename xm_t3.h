@@ -39,7 +39,8 @@ extern "C" {
  * Still need to call start after this to start actual playback.
  * @param	moddata		The mod data as a libxmized format (non-delta coded)
  **/
-void xm_player_init( const char* moddata );
+void xm_player_xmize( const char* moddata );
+void xm_player_xm( const char* moddata, uint32_t moddata_size );
 
 /**
  * Free the mod player (destructor equivalent)
@@ -63,8 +64,9 @@ void xm_player_stop( void );
  * Called during the update loop to step the player. This is typically done
  * even while the player is stopped, though it is safe not to call update
  * if you know the player is stopped.
+ * @return		number of sample pairs pushed to the ringbuffer
  */
-void xm_player_update( void );
+uint16_t xm_player_update( void );
 
 /**
  * Jump to a specific location in the file.
@@ -78,5 +80,10 @@ void xm_player_update( void );
  *						first before jumping, otherwise will jump immediately
  */
 void xm_player_jump( uint8_t location, bool wait = true );
+
+/**
+ * Dump information about the loaded module to serial.
+ **/
+void xm_player_info( boolean verbose = false );
 
 #endif

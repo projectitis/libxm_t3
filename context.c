@@ -35,39 +35,28 @@ int xm_create_context_safe(xm_context_t** ctxp, const char* moddata, size_t modd
 	#endif
 
 	bytes_needed = xm_get_memory_needed_for_context(moddata, moddata_length);
-	
-sprintf( xm_debugstr, "xm_create_context_safe(): Need %u bytes\n", bytes_needed );
-xm_stdout(xm_debugstr);
-	
 	mempool = malloc(bytes_needed);
 	if(mempool == NULL && bytes_needed > 0) {
 		/* malloc() failed, trouble ahead */
 		#ifdef XM_DEBUG
-			sprintf( xm_debugstr, "call to malloc() failed, returned %p", (void*)mempool );
+			sprintf( xm_debugstr, "call to malloc() failed, returned %p\n", (void*)mempool );
 			xm_stdout( xm_debugstr );
 		#endif
 		return 2;
 	}
-
-sprintf( xm_debugstr, "xm_create_context_safe(): Memory allocated from %lu to %lu\n", (uint32_t)mempool, (uint32_t)(mempool+bytes_needed) );	
-xm_stdout(xm_debugstr);
 	
 	/* Initialize most of the fields to 0, 0.f, NULL or false depending on type */
 	memset(mempool, 0, bytes_needed);
 	
 	ctx = (*ctxp = (xm_context_t*)mempool);
 	ctx->ctx_size = bytes_needed; /* Keep original requested size for xmconvert */
-	mempool += sizeof(xm_context_t);
-
-xm_stdout("xm_create_context_safe(): calling load module\n");
+	mempool += PAD_TO_WORD(sizeof(xm_context_t));
 	
 	ctx->rate = rate;
 	mempool = xm_load_module(ctx, moddata, moddata_length, mempool);
-
-xm_stdout("xm_create_context_safe(): channels\n");
 	
 	ctx->channels = (xm_channel_context_t*)mempool;
-	mempool += ctx->module.num_channels * sizeof(xm_channel_context_t);
+	mempool += PAD_TO_WORD(ctx->module.num_channels * sizeof(xm_channel_context_t));
 
 	ctx->global_volume = 1.f;
 	ctx->amplification = .25f; /* XXX: some bad modules may still clip. Find out something better. */
@@ -93,22 +82,23 @@ xm_stdout("xm_create_context_safe(): channels\n");
 	}
 
 	ctx->row_loop_count = (uint8_t*)mempool;
-	mempool += MAX_NUM_ROWS * sizeof(uint8_t);
-
-xm_stdout("xm_create_context_safe(): post load\n");
+	mempool += PAD_TO_WORD(MAX_NUM_ROWS * sizeof(uint8_t));
 	
 	#ifdef XM_DEFENSIVE
 		if((ret = xm_check_sanity_postload(ctx))) {
 			#ifdef XM_DEBUG
-				sprintf( xm_debugstr, "xm_check_sanity_postload() returned %i, module is not safe to play", ret);
+				sprintf( xm_debugstr, "xm_check_sanity_postload() returned %i, module is not safe to play\n", ret);
 				xm_stdout( xm_debugstr );
 			#endif
 			xm_free_context(ctx);
 			return 1;
 		}
 	#endif
-
-xm_stdout("xm_create_context_safe(): complete\n");
+	
+	#ifdef XM_DEBUG
+		sprintf( xm_debugstr, "// Module loaded. Context size is %u\n", bytes_needed );
+		xm_stdout( xm_debugstr );
+	#endif
 	
 	return 0;
 }
@@ -145,6 +135,11 @@ void xm_create_context_from_libxmize(xm_context_t** ctxp, const char* libxmized,
 			}
 		}
 	}
+	
+	#ifdef XM_DEBUG
+		sprintf( xm_debugstr, "// Module loaded. Context size is %u\n", ctx_size );
+		xm_stdout( xm_debugstr );
+	#endif
 }
 
 void xm_create_shared_context_from_libxmize(xm_context_t** ctxp, const char* libxmized, uint32_t rate) {
@@ -153,16 +148,16 @@ void xm_create_shared_context_from_libxmize(xm_context_t** ctxp, const char* lib
 	xm_context_t* out;
 	char* alloc;
 
-	size_t sz = sizeof(xm_context_t)
-		+ in->module.length * MAX_NUM_ROWS * sizeof(uint8_t)
-		+ in->module.num_channels * sizeof(xm_channel_context_t)
-		+ in->module.num_patterns * sizeof(xm_pattern_t)
-		+ in->module.num_instruments * sizeof(xm_instrument_t)
+	size_t sz = PAD_TO_WORD(sizeof(xm_context_t))
+		+ PAD_TO_WORD(in->module.length * MAX_NUM_ROWS * sizeof(uint8_t))
+		+ PAD_TO_WORD(in->module.num_channels * sizeof(xm_channel_context_t))
+		+ PAD_TO_WORD(in->module.num_patterns * sizeof(xm_pattern_t))
+		+ PAD_TO_WORD(in->module.num_instruments * sizeof(xm_instrument_t))
 		;
 
 	const xm_instrument_t* inst = (void*)((intptr_t)in + (intptr_t)in->module.instruments);
 	for(i = 0; i < in->module.num_instruments; ++i) {
-		sz += inst[i].num_samples * sizeof(xm_sample_t);
+		sz += PAD_TO_WORD(inst[i].num_samples * sizeof(xm_sample_t));
 	}
 
 	alloc = malloc(sz);
@@ -176,7 +171,7 @@ void xm_create_shared_context_from_libxmize(xm_context_t** ctxp, const char* lib
 	#endif
 	
 	#ifdef XM_DEBUG
-		sprintf( xm_debugstr, "allocated %u bytes for shared context (%.2f%% sparseness)\n", sz, 100.f - 100.f * (float)sz / (float)in->ctx_size );
+		sprintf( xm_debugstr, "// Saved %.2f%% RAM usage over original XM file format\n", sz, 100.f - 100.f * (float)sz / (float)in->ctx_size );
 		xm_stdout( xm_debugstr );
 	#endif
 
@@ -188,14 +183,14 @@ void xm_create_shared_context_from_libxmize(xm_context_t** ctxp, const char* lib
 	memcpy(out, in, sizeof(xm_context_t));
 	out->rate = rate;
 	
-	alloc += sizeof(xm_context_t);
+	alloc += PAD_TO_WORD(sizeof(xm_context_t));
 	out->row_loop_count = (void*)alloc;
-	alloc += in->module.length * MAX_NUM_ROWS * sizeof(uint8_t);
+	alloc += PAD_TO_WORD(in->module.length * MAX_NUM_ROWS * sizeof(uint8_t));
 	out->channels = (void*)alloc;
-	alloc += in->module.num_channels * sizeof(xm_channel_context_t);
+	alloc += PAD_TO_WORD(in->module.num_channels * sizeof(xm_channel_context_t));
 
 	out->module.patterns = (void*)alloc;
-	alloc += in->module.num_patterns * sizeof(xm_pattern_t);
+	alloc += PAD_TO_WORD(in->module.num_patterns * sizeof(xm_pattern_t));
 	const xm_pattern_t* pat = (void*)((intptr_t)in + (intptr_t)in->module.patterns);
 	memcpy(out->module.patterns, pat, in->module.num_patterns * sizeof(xm_pattern_t));
 	for(i = 0; i < in->module.num_patterns; ++i) {
@@ -203,11 +198,11 @@ void xm_create_shared_context_from_libxmize(xm_context_t** ctxp, const char* lib
 	}
 
 	out->module.instruments = (void*)alloc;
-	alloc += in->module.num_instruments * sizeof(xm_instrument_t);
+	alloc += PAD_TO_WORD(in->module.num_instruments * sizeof(xm_instrument_t));
 	memcpy(out->module.instruments, inst, in->module.num_instruments * sizeof(xm_instrument_t));
 	for(i = 0; i < in->module.num_instruments; ++i) {
 		out->module.instruments[i].samples = (void*)alloc;
-		alloc += inst[i].num_samples * sizeof(xm_sample_t);
+		alloc += PAD_TO_WORD(inst[i].num_samples * sizeof(xm_sample_t));
 		const xm_sample_t* s = (void*)((intptr_t)in + (intptr_t)inst[i].samples);
 		memcpy(out->module.instruments[i].samples, s, inst[i].num_samples * sizeof(xm_sample_t));
 		for(j = 0; j < inst[i].num_samples; ++j) {

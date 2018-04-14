@@ -112,6 +112,10 @@ static const float multi_retrig_multiply[] = {
 						 || ((s)->volume_column >> 4) == 0xB)
 #define NOTE_IS_VALID(n) ((n) > 0 && (n) < 97)
 
+#ifdef XM_DEBUG
+	char xm_debugmode = 0;
+#endif
+
 /* ----- Function definitions ----- */
 
 static float xm_waveform(xm_waveform_type_t waveform, uint8_t step) {
@@ -1367,7 +1371,7 @@ static void xm_sample(xm_context_t* ctx, float* left, float* right) {
 		}
 
 		const float fval = xm_next_of_sample(ch);
-
+		
 		if(!ch->muted && !ch->instrument->muted) {
 			*left += fval * ch->actual_volume * (1.f - ch->actual_panning);
 			*right += fval * ch->actual_volume * ch->actual_panning;
@@ -1379,14 +1383,13 @@ static void xm_sample(xm_context_t* ctx, float* left, float* right) {
 			XM_SLIDE_TOWARDS(ch->actual_panning, ch->target_panning, ctx->panning_ramp);
 		#endif
 	}
-
 	const float fgvol = ctx->global_volume * ctx->amplification;
 	*left *= fgvol;
 	*right *= fgvol;
-
+	
 	#ifdef XM_DEBUG
 		if(fabs(*left) > 1 || fabs(*right) > 1) {
-			sprintf( xm_debugstr, "clipping frame: %f %f, this is a bad module or a libxm bug", *left, *right);
+			sprintf( xm_debugstr, "clipping frame: %f %f, this is a bad module or a libxm bug\n", *left, *right);
 			xm_stdout( xm_debugstr );
 		}
 	#endif
@@ -1399,3 +1402,9 @@ void xm_generate_samples(xm_context_t* ctx, float* output, size_t numsamples) {
 		xm_sample(ctx, output + (2 * i), output + (2 * i + 1));
 	}
 }
+
+#ifdef XM_DEBUG
+	void xm_set_debug( char state ){
+		xm_debugmode = state;
+	}
+#endif

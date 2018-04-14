@@ -88,18 +88,15 @@ size_t xm_get_memory_needed_for_context(const char* moddata, size_t moddata_leng
 	uint16_t num_instruments;
 
 	/* Read the module header */
-
-	num_channels = READ_U16(offset + 8);
 	num_channels = READ_U16(offset + 8);
 
 	num_patterns = READ_U16(offset + 10);
-	memory_needed += num_patterns * sizeof(xm_pattern_t);
+	memory_needed += PAD_TO_WORD(num_patterns * sizeof(xm_pattern_t));
 
 	num_instruments = READ_U16(offset + 12);
-	memory_needed += num_instruments * sizeof(xm_instrument_t);
+	memory_needed += PAD_TO_WORD(num_instruments * sizeof(xm_instrument_t));
 
-	memory_needed += MAX_NUM_ROWS * READ_U16(offset + 4) * sizeof(uint8_t); /* Module length */
-
+	memory_needed += PAD_TO_WORD(MAX_NUM_ROWS * READ_U16(offset + 4) * sizeof(uint8_t)); /* Module length */
 	/* Header size */
 	offset += READ_U32(offset);
 
@@ -108,7 +105,7 @@ size_t xm_get_memory_needed_for_context(const char* moddata, size_t moddata_leng
 		uint16_t num_rows;
 
 		num_rows = READ_U16(offset + 5);
-		memory_needed += num_rows * num_channels * sizeof(xm_pattern_slot_t);
+		memory_needed += PAD_TO_WORD(num_rows * num_channels * sizeof(xm_pattern_slot_t));
 
 		/* Pattern header length + packed pattern data size */
 		offset += READ_U32(offset) + READ_U16(offset + 7);
@@ -121,7 +118,7 @@ size_t xm_get_memory_needed_for_context(const char* moddata, size_t moddata_leng
 		uint32_t sample_size_aggregate = 0;
 
 		num_samples = READ_U16(offset + 27);
-		memory_needed += num_samples * sizeof(xm_sample_t);
+		memory_needed += PAD_TO_WORD(num_samples * sizeof(xm_sample_t));
 
 		if(num_samples > 0) {
 			sample_header_size = READ_U32(offset + 29);
@@ -135,15 +132,16 @@ size_t xm_get_memory_needed_for_context(const char* moddata, size_t moddata_leng
 
 			sample_size = READ_U32(offset);
 			sample_size_aggregate += sample_size;
-			memory_needed += sample_size;
+			memory_needed += PAD_TO_WORD( sample_size );
+			
 			offset += sample_header_size;
 		}
 
 		offset += sample_size_aggregate;
 	}
 
-	memory_needed += num_channels * sizeof(xm_channel_context_t);
-	memory_needed += sizeof(xm_context_t);
+	memory_needed += PAD_TO_WORD(num_channels * sizeof(xm_channel_context_t));
+	memory_needed += PAD_TO_WORD(sizeof(xm_context_t));
 
 	return memory_needed;
 }
@@ -151,27 +149,13 @@ size_t xm_get_memory_needed_for_context(const char* moddata, size_t moddata_leng
 char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_length, char* mempool) {
 	size_t offset = 0;
 	xm_module_t* mod = &(ctx->module);
-	uint8_t temp_uint8;
-	float temp_float;
-	
-char* start_mempool = mempool;
-sprintf( xm_debugstr, "xm_load_module(): address %lu\n", (uint32_t)mempool );
-xm_stdout( xm_debugstr );
 
 	/* Read XM header */
-	#if XM_STRINGS
+	#ifdef XM_STRINGS
 		READ_MEMCPY(mod->name, offset + 17, MODULE_NAME_LENGTH);
 		READ_MEMCPY(mod->trackername, offset + 38, TRACKER_NAME_LENGTH);
 	#endif
-
-READ_MEMCPY(xm_debugstr, offset + 17, MODULE_NAME_LENGTH);
-xm_debugstr[MODULE_NAME_LENGTH] = '\n';
-xm_debugstr[MODULE_NAME_LENGTH+1] = '\0';
-xm_stdout( xm_debugstr );
-
 	offset += 60;
-
-xm_stdout("  header\n");
 
 	/* Read module header */
 	uint32_t header_size = READ_U32(offset);
@@ -182,26 +166,11 @@ xm_stdout("  header\n");
 	mod->num_patterns = READ_U16(offset + 10);
 	mod->num_instruments = READ_U16(offset + 12);
 
-sprintf( xm_debugstr, "    mod->length: %u\n", mod->length );
-xm_stdout(xm_debugstr);
-sprintf( xm_debugstr, "    mod->restart_position: %u\n", mod->restart_position );
-xm_stdout(xm_debugstr);
-sprintf( xm_debugstr, "    mod->num_channels: %u\n", mod->num_channels );
-xm_stdout(xm_debugstr);
-sprintf( xm_debugstr, "    mod->num_patterns: %u\n", mod->num_patterns );
-xm_stdout(xm_debugstr);
-sprintf( xm_debugstr, "    mod->num_instruments: %u\n", mod->num_instruments );
-xm_stdout(xm_debugstr);
-	
-xm_stdout("  patterns\n");	
-	
 	mod->patterns = (xm_pattern_t*)mempool;
-	mempool += mod->num_patterns * sizeof(xm_pattern_t);
+	mempool += PAD_TO_WORD(mod->num_patterns * sizeof(xm_pattern_t));
 
-xm_stdout("  instruments\n");	
-	
 	mod->instruments = (xm_instrument_t*)mempool;
-	mempool += mod->num_instruments * sizeof(xm_instrument_t);
+	mempool += PAD_TO_WORD(mod->num_instruments * sizeof(xm_instrument_t));
 
 	uint16_t flags = READ_U32(offset + 14);
 	mod->frequency_type = (flags & (1 << 0)) ? XM_LINEAR_FREQUENCIES : XM_AMIGA_FREQUENCIES;
@@ -209,13 +178,9 @@ xm_stdout("  instruments\n");
 	ctx->tempo = READ_U16(offset + 16);
 	ctx->bpm = READ_U16(offset + 18);
 
-xm_stdout("  pattern_table\n");
-	
 	READ_MEMCPY(mod->pattern_table, offset + 20, PATTERN_ORDER_TABLE_LENGTH);
 	offset += header_size;
 
-xm_stdout("  read patterns\n");
-	
 	/* Read patterns */
 	for(uint16_t i = 0; i < mod->num_patterns; ++i) {
 		uint16_t packed_patterndata_size = READ_U16(offset + 7);
@@ -224,7 +189,7 @@ xm_stdout("  read patterns\n");
 		pat->num_rows = READ_U16(offset + 5);
 
 		pat->slots = (xm_pattern_slot_t*)mempool;
-		mempool += mod->num_channels * pat->num_rows * sizeof(xm_pattern_slot_t);
+		mempool += PAD_TO_WORD(mod->num_channels * pat->num_rows * sizeof(xm_pattern_slot_t));
 
 		/* Pattern header length */
 		offset += READ_U32(offset);
@@ -298,25 +263,14 @@ xm_stdout("  read patterns\n");
 
 	/* Read instruments */
 	for(uint16_t i = 0; i < ctx->module.num_instruments; ++i) {
-		
-sprintf( xm_debugstr, "  instrument %u at mempool %lu\n", i, (uint32_t)(mempool-start_mempool) );
-xm_stdout( xm_debugstr );
-		
 		uint32_t sample_header_size = 0;
 		xm_instrument_t* instr = mod->instruments + i;
 
-READ_MEMCPY(xm_debugstr, offset + 4, INSTRUMENT_NAME_LENGTH);
-xm_debugstr[INSTRUMENT_NAME_LENGTH] = '\n';
-xm_debugstr[INSTRUMENT_NAME_LENGTH+1] = '\0';
-xm_stdout( xm_debugstr );
-		#if XM_STRINGS
+		#ifdef XM_STRINGS
 			READ_MEMCPY(instr->name, offset + 4, INSTRUMENT_NAME_LENGTH);
 		#endif
 	    instr->num_samples = READ_U16(offset + 27);
 
-sprintf( xm_debugstr, "    has %u samples\n", instr->num_samples );
-xm_stdout( xm_debugstr );
-		
 		if(instr->num_samples > 0) {
 			/* Read extra header properties */
 			sample_header_size = READ_U32(offset + 29);
@@ -365,50 +319,26 @@ xm_stdout( xm_debugstr );
 			instr->volume_fadeout = READ_U16(offset + 239);
 
 			instr->samples = (xm_sample_t*)mempool;
-			mempool += instr->num_samples * sizeof(xm_sample_t);
+			mempool += PAD_TO_WORD(instr->num_samples * sizeof(xm_sample_t));
 		} else {
 			instr->samples = NULL;
 		}
-		
+
 		/* Instrument header size */
 		offset += READ_U32(offset);
 
 		for(uint16_t j = 0; j < instr->num_samples; ++j) {
-			
-sprintf( xm_debugstr, "    sample %u\n", j );
-xm_stdout( xm_debugstr );
-			
 			/* Read sample header */
 			xm_sample_t* sample = instr->samples + j;
 
-sprintf( xm_debugstr, "    address %lu\n", (uint32_t)sample );
-xm_stdout( xm_debugstr );
-			
 			sample->length = READ_U32(offset);
 			sample->loop_start = READ_U32(offset + 4);
 			sample->loop_length = READ_U32(offset + 8);
 			sample->loop_end = sample->loop_start + sample->loop_length;
-sprintf( xm_debugstr, "      Get sample->volume from %lu (%u)\n", (uint32_t)( moddata + offset + 12 ), (uint16_t)(offset + 12) );		
-xm_stdout( xm_debugstr );
-			temp_uint8 = READ_U8(offset + 12);
-			temp_float = temp_uint8 / 64.0f;
-sprintf( xm_debugstr, "        Got %u\n", temp_uint8 );			
-xm_stdout(xm_debugstr);
-sprintf( xm_debugstr, "        Float %f\n", temp_float );			
-xm_stdout(xm_debugstr);
-			//sample->volume = 1.0f; // This works ok
-			sample->volume = temp_float; // Using a temp float. This breaks it
-			//sample->volume = (float)READ_U8(offset + 12) / (float)0x40; // Original code. This breaks it
-xm_stdout( "      Get sample->finetune\n" );
+			sample->volume = (float)READ_U8(offset + 12) / (float)0x40;
 			sample->finetune = (int8_t)READ_U8(offset + 13);
 
-sprintf( xm_debugstr, "      length %lu\n", sample->length );
-xm_stdout( xm_debugstr );
-
 			uint8_t flags = READ_U8(offset + 14);
-			
-xm_stdout("      Got flags\n");
-			
 			if((flags & 3) == 0) {
 				sample->loop_type = XM_NO_LOOP;
 			} else if((flags & 3) == 1) {
@@ -419,22 +349,14 @@ xm_stdout("      Got flags\n");
 
 			sample->bits = (flags & (1 << 4)) ? 16 : 8;
 
-xm_stdout("      Set bits\n");	
-			temp_uint8 = READ_U8(offset + 15);
-			sample->panning = 1.0f; //(float)READ_U8(offset + 15) / (float)0xFF;
+			sample->panning = (float)READ_U8(offset + 15) / (float)0xFF;
 			sample->relative_note = (int8_t)READ_U8(offset + 16);
-			#if XM_STRINGS
+			#ifdef XM_STRINGS
 				READ_MEMCPY(sample->name, 18, SAMPLE_NAME_LENGTH);
 			#endif
-			
-sprintf( xm_debugstr, "      Point data at mempool %lu\n", (uint32_t)(mempool-start_mempool) );
-xm_stdout( xm_debugstr );
 			sample->data8 = (int8_t*)mempool;
-			mempool += sample->length;
+			mempool += (uint32_t)(PAD_TO_WORD(sample->length));
 
-sprintf( xm_debugstr, "      Mempool now at %lu\n", (uint32_t)(mempool-start_mempool) );
-xm_stdout( xm_debugstr );
-			
 			if(sample->bits == 16) {
 				sample->loop_start >>= 1;
 				sample->loop_length >>= 1;
@@ -444,12 +366,8 @@ xm_stdout( xm_debugstr );
 
 			offset += sample_header_size;
 		}
-		
-		for(uint16_t j = 0; j < instr->num_samples; ++j) {
-			
-sprintf( xm_debugstr, "    sample data %u\n", j );
-xm_stdout( xm_debugstr );
 
+		for(uint16_t j = 0; j < instr->num_samples; ++j) {
 			/* Read sample data */
 			xm_sample_t* sample = instr->samples + j;
 			uint32_t length = sample->length;
@@ -471,8 +389,6 @@ xm_stdout( xm_debugstr );
 			}
 		}
 	}
-	
-xm_stdout("  xm_load_module() complete\n");
 
 	return mempool;
 }

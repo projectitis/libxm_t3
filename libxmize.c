@@ -14,12 +14,14 @@
  **/
 
 #include "xm_internal.h"
+#include <stdio.h>
 
 #define OFFSET(ptr) do { (ptr) = (void*)((intptr_t)(ptr) - (intptr_t)ctx); } while(0)
 
-/* XXX: implement per-waveform zapping */
-/* XXX: maybe also wipe loop info, finetune, length etc */
-/* XXX: properly replace sample by a 0-length waveform instead of zeroing buffer? harder than it sounds */
+/**
+ * XXX: implement per-waveform zapping 
+ * XXX: maybe also wipe loop info, finetune, length etc 
+ * XXX: properly replace sample by a 0-length waveform instead of zeroing buffer? harder than it sounds
 static size_t zero_waveforms(xm_context_t* ctx) {
 	size_t i, j, total_saved_bytes = 0;
 
@@ -37,6 +39,7 @@ static size_t zero_waveforms(xm_context_t* ctx) {
 
 	return total_saved_bytes;
 }
+*/
 
 /**
  * Convert xm module to libxmlized version and output as a byte array to serial. This is an
@@ -44,12 +47,13 @@ static size_t zero_waveforms(xm_context_t* ctx) {
  **/
 void xm_libxmize( const char* moddata, uint16_t moddata_size ){
 	xm_context_t* ctx;
-	size_t i, j;
+	size_t i, j, sz;
 	char outstr[255];
 	#ifdef XM_LIBXMIZE_DELTA_SAMPLES
 		size_t k;
 	#endif
 	uint8_t* ctx_p;
+	uint8_t ctx_val;
 	
 	// Comment start of serial output
 	#ifdef XM_LIBXMIZE_DELTA_SAMPLES
@@ -68,8 +72,8 @@ void xm_libxmize( const char* moddata, uint16_t moddata_size ){
 	}
 	
 	// Zero waveforms
-	sprintf( outstr, "// Saved %u bytes zeroing waveforms\n", zero_waveforms(ctx) );
-	xm_stdout(outstr);
+	//sprintf( outstr, "// Saved %u bytes zeroing waveforms\n", zero_waveforms(ctx) );
+	//xm_stdout(outstr);
 	
 	// Ugly pointer offsetting ahead
 	for(i = 0; i < ctx->module.num_patterns; ++i) {
@@ -103,15 +107,17 @@ void xm_libxmize( const char* moddata, uint16_t moddata_size ){
 	OFFSET(ctx->channels);
 	
 	// Write libxmized data to Serial
-	sprintf( outstr, "// Total %u bytes\n", ctx->ctx_size );
+	sz = xm_get_memory_needed_for_context( moddata, moddata_size );
+	sprintf( outstr, "const uint32_t moddata_len = %u;\n", sz );
 	xm_stdout( outstr );
-	xm_stdout("const char PROGMEM moddata[] = {\n");
+	xm_stdout("const char moddata[] = {\n");
 	j = 0;
 	ctx_p = (uint8_t*)ctx;
-	for (i=0; i<ctx->ctx_size; i++){
+	for (i=0; i<sz; i++){
 		if (i==0) xm_stdout(" ");
 		else xm_stdout(",");
-		sprintf( outstr, "%d",(uint8_t)*ctx_p );
+		ctx_val = *ctx_p;
+		sprintf( outstr, "%3u", ctx_val );
 		xm_stdout( outstr );
 		if (++j==64){
 			xm_stdout("\n");
