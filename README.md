@@ -1,6 +1,10 @@
 # libxm_t3
 Port of libxm (by Artefact2) for Teensy 3x microprocessors
 
+## Status
+
+Working, but some playback bugs (see below).
+
 ## Prerequisites
 
 Only tested on Teensy 3.6 but should work on T3.5 and T3.2 as well. You will need:
@@ -67,6 +71,10 @@ The following is a list of broad changes to the original code to support the Tee
 * Changed libxmize code to outout header file code to serial instead of save a file
 * Thanks to Artefact2, wrote a libxmize loader that uses 90% less RAM for playback
 * Added a player based on IntervalTimer and ring buffer
+
+### Known bugs
+
+* Playback of a libxmized file is different from playback of the full xm. Working on it.
 
 ### Todo
 

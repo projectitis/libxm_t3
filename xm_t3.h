@@ -69,6 +69,23 @@ void xm_player_stop( void );
 uint16_t xm_player_update( void );
 
 /**
+ * Type of file to save using xm_player_save
+ **/
+typedef enum {
+	SAVETYPE_WAV,	// Save song as WAV file
+	SAVETYPE_AU,	// Save song as AU file
+	SAVETYPE_XMIZE,		// Save song as libxmize
+	SAVETYPE_XMIZE_H	// Save song as libxmize data in header file
+} xm_savetype_t;
+
+/**
+ * Save to SD card. This is designed to work after loading a module
+ * but before playing. If you have played or are playing the module
+ * when this is called, the results are undefined!
+ **/
+boolean xm_player_save( const char* filename, xm_savetype_t savetype );
+
+/**
  * Jump to a specific location in the file.
  *
  * This is intended to change music mid-game depending on what is happening.
@@ -85,5 +102,6 @@ void xm_player_jump( uint8_t location, bool wait = true );
  * Dump information about the loaded module to serial.
  **/
 void xm_player_info( boolean verbose = false );
+
 
 #endif

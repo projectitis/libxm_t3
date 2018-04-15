@@ -24,6 +24,8 @@ typedef struct xm_context_s xm_context_t;
 
 // Enable debug symbols and print debugging messages to stderr
 //#define XM_DEBUG
+// Defined for big endian systems. Teensy is little endian
+//#define XM_BIG_ENDIAN
 // Use teensy stdout func to write to serial. If this is not defined then
 // the XM library will write to stdout instead.
 #define XM_HAS_OWN_STDOUT

@@ -8,6 +8,8 @@
  * http://sam.zoy.org/wtfpl/COPYING for more details. */
  
 #include "xm_t3.h"
+#include <SD.h>
+
 extern "C" {
 	#ifdef XM_HAS_OWN_STDOUT
 		#include <stdarg.h>
@@ -191,6 +193,218 @@ uint16_t xm_player_update( void ){
  */
 void xm_player_jump( uint8_t location, bool wait ){
 	
+}
+
+typedef union {
+	float f;
+	uint32_t i;
+} f_to_uint32_t;
+static void write_uint32_be(uint32_t in, File file) {
+	char* i = (char*)(&in);
+	
+	#ifdef XM_BIG_ENDIAN
+		file.write( i[0] );
+		file.write( i[1] );
+		file.write( i[2] );
+		file.write( i[3] );
+	#else
+		file.write( i[3] );
+		file.write( i[2] );
+		file.write( i[1] );
+		file.write( i[0] );
+	#endif
+}
+static void write_uint32_le(uint32_t in, File file) {
+	char* i = (char*)(&in);
+	
+	#ifdef XM_BIG_ENDIAN
+		file.write( i[3] );
+		file.write( i[2] );
+		file.write( i[1] );
+		file.write( i[0] );
+	#else
+		file.write( i[0] );
+		file.write( i[1] );
+		file.write( i[2] );
+		file.write( i[3] );
+	#endif
+}
+void write_uint16_be(uint16_t in, File file) {
+	char* i = (char*)(&in);
+
+	#ifdef XM_BIG_ENDIAN
+		file.write( i[0] );
+		file.write( i[1] );
+	#else
+		file.write( i[1] );
+		file.write( i[0] );
+	#endif
+}
+void write_uint16_le(uint16_t in, File file) {
+	char* i = (char*)(&in);
+
+	#ifdef XM_BIG_ENDIAN
+		file.write( i[1] );
+		file.write( i[0] );
+	#else
+		file.write( i[0] );
+		file.write( i[1] );
+	#endif
+}
+
+/**
+ * Save to SD card. This is designed to work after loading a module
+ * but before playing. If you have played or are playing the module
+ * when this is called, the results are undefined!
+ **/
+boolean xm_player_save( const char* filename, xm_savetype_t savetype ){
+	#if !defined(__MK64FX512__) && !defined(__MK66FX1M0__)
+		Serial.println(F("Save is currently supported on Teensy 3.5 and 3.6 only"));
+		return false;
+	#endif
+	
+	if (!_context){
+		Serial.println(F("Module is not loaded"));
+		return false;
+	}
+	
+	if (!SD.begin( BUILTIN_SDCARD )) {
+		Serial.println(F("SD initialization failed"));
+		return false;
+	}
+	
+	File outfile;
+	float samplepair[2];
+	f_to_uint32_t sample;
+	uint32_t count;
+	
+	// Open file for writing (delete first if exists)
+	SD.remove( filename );
+	outfile = SD.open(filename, FILE_WRITE);
+	if (!outfile) {
+		Serial.printf(F("Opening %s failed\n"), filename);
+		return false;
+	}
+	
+	switch (savetype){
+		case SAVETYPE_WAV:
+			/*
+				WAVE format info taken from http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/WAVE.html
+
+				Unlike AU, WAVE files cannot have an unknown length. This
+				is why we can't write directly to stdout (we need to rewind
+				because module length is hard to know.
+			*/
+			outfile.print(F("RIFF"));
+			write_uint32_le(0, outfile); 				// Chunk size. Will be filled later.
+			outfile.print(F("WAVE"));
+
+			outfile.print(F("fmt"));					// Start format chunk
+			write_uint32_le(16, outfile);				// Format chunk size
+			write_uint16_le(3, outfile);				// IEEE float sample data
+			#ifdef XM_STEREO
+				write_uint16_le(2, outfile);			// Two channels
+			#else
+				write_uint16_le(1, outfile);			// One channel
+			#endif
+			write_uint32_le(XM_SAMPLE_RATE, outfile);	// Frames/sec (sampling rate)
+			#ifdef XM_STEREO
+				write_uint32_le(48000 * 2 * sizeof(float), outfile);	// nAvgBytesPerSec
+				write_uint16_le(2 * sizeof(float), outfile); 			// nBlockAlign
+			#else
+				write_uint32_le(48000 * 1 * sizeof(float), outfile);	// nAvgBytesPerSec
+				write_uint16_le(1 * sizeof(float), outfile);			// nBlockAlign
+			#endif
+			write_uint16_le(8 * sizeof(float), outfile);// wBitsPerSample
+			
+			outfile.print(F("data"));					// Start data chunk
+			write_uint32_le(0, outfile);				// Data chunk size. Will be filled later.
+			// Make sure we only do the song once
+			count = 0;
+			while(!xm_get_loop_count(_context)) {
+				// generate a sampel pair and save the bytes
+				xm_generate_samples( _context, samplepair, 1);
+				sample.f = samplepair[0];
+				write_uint32_be(sample.i, outfile);
+				sample.f = samplepair[1];
+				write_uint32_be(sample.i, outfile);
+				count += 2;
+			}
+			
+			// Riff chunk size
+			outfile.seek(4);
+			write_uint32_le(36 + count * sizeof(float), outfile);
+			
+			// Data chunk size
+			outfile.seek(40);
+			write_uint32_le(count * sizeof(float), outfile);
+			
+			break;
+		case SAVETYPE_AU:
+			/*
+				From: https://whatis.techtarget.com/fileformat/AU-Sun-NeXT-DEC-UNIX-sound-file
+				
+				AU is a file extension for a sound file format belonging to Sun,
+				NeXT and DEC and used in UNIX. The AU file format is also known
+				as the Sparc-audio or u-law fomat.
+
+				AU files contain three parts: the audio data and text for a header
+				(containing 24 bytes) and an annotation block.
+
+				MIME type: audio/basic, audio/x-basic, audio/au, audio/x-au,
+				audio/x-pn-au, audio/rmf, audio/x-rmf, audio/x-ulaw, audio/vnd.qcelp
+				audio/x-gsm, audio/snd
+			*/
+			write_uint32_be(0x2E736E64, outfile);		//.snd magic number
+			write_uint32_be(28, outfile); 				// Header size
+			write_uint32_be((uint32_t)(-1), outfile);	// Data size, unknown
+			write_uint32_be(6, outfile); 				// Encoding: 32-bit IEEE floating point
+			write_uint32_be(XM_SAMPLE_RATE, outfile);	// Sample rate
+			#ifdef XM_STEREO
+				write_uint32_be(2, outfile);			// Two channels
+			#else
+				write_uint32_be(1, outfile);			// One channel
+			#endif
+			write_uint32_be(0, outfile);				// Optional text info
+			
+			// Make sure we only do the song once
+			while(!xm_get_loop_count(_context)) {
+				// generate a sampel pair and save the bytes
+				xm_generate_samples( _context, samplepair, 1);
+				sample.f = samplepair[0];
+				write_uint32_be(sample.i, outfile);
+				sample.f = samplepair[1];
+				write_uint32_be(sample.i, outfile);
+			}
+			
+			break;
+		case SAVETYPE_BIN:
+			// Simply save all sample data and to end as 2x4-byte words
+			
+			// Make sure we only do the song once
+			while(!xm_get_loop_count(_context)) {
+				// generate a sampel pair and save the bytes
+				xm_generate_samples( _context, samplepair, 1);
+				sample.f = samplepair[0];
+				write_uint32_le(sample.i, outfile);
+				sample.f = samplepair[1];
+				write_uint32_le(sample.i, outfile);
+			}
+			break;
+		case SAVETYPE_XMIZE:
+			
+			break;
+		case SAVETYPE_XMIZE_H:
+			
+			break;
+	}
+	
+	
+	// close the file
+    outfile.close();
+	
+	// Success
+	return true;
 }
 
 /**
