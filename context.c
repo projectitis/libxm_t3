@@ -128,11 +128,7 @@ void xm_create_context_from_libxmize(xm_context_t** ctxp, const char* libxmized,
 		OFFSET((*ctxp)->module.instruments[i].samples);
 
 		for(j = 0; j < (*ctxp)->module.instruments[i].num_samples; ++j) {
-			if((*ctxp)->module.instruments[i].samples[j].bits == 8) {
-				OFFSET((*ctxp)->module.instruments[i].samples[j].data8);
-			} else{
-				OFFSET((*ctxp)->module.instruments[i].samples[j].data16);
-			}
+			OFFSET((*ctxp)->module.instruments[i].samples[j].data8);
 		}
 	}
 	
@@ -148,18 +144,18 @@ void xm_create_shared_context_from_libxmize(xm_context_t** ctxp, const char* lib
 	xm_context_t* out;
 	char* alloc;
 
+	// Calculate size of memory to allocate. This is much less than a normal context because
+	// much of the data (the const data) remains in the shared context.
 	size_t sz = PAD_TO_WORD(sizeof(xm_context_t))
 		+ PAD_TO_WORD(in->module.length * MAX_NUM_ROWS * sizeof(uint8_t))
 		+ PAD_TO_WORD(in->module.num_channels * sizeof(xm_channel_context_t))
 		+ PAD_TO_WORD(in->module.num_patterns * sizeof(xm_pattern_t))
 		+ PAD_TO_WORD(in->module.num_instruments * sizeof(xm_instrument_t))
 		;
-
 	const xm_instrument_t* inst = (void*)((intptr_t)in + (intptr_t)in->module.instruments);
 	for(i = 0; i < in->module.num_instruments; ++i) {
 		sz += PAD_TO_WORD(inst[i].num_samples * sizeof(xm_sample_t));
 	}
-
 	alloc = malloc(sz);
 	out = (void*)alloc;
 	*ctxp = out;
@@ -179,16 +175,15 @@ void xm_create_shared_context_from_libxmize(xm_context_t** ctxp, const char* lib
 		#error Delta coding samples not supported
 	#endif
 
+	// Copy the context struct first
 	memset(alloc, 0, sz);
 	memcpy(out, in, sizeof(xm_context_t));
 	out->rate = rate;
-	
 	alloc += PAD_TO_WORD(sizeof(xm_context_t));
 	out->row_loop_count = (void*)alloc;
 	alloc += PAD_TO_WORD(in->module.length * MAX_NUM_ROWS * sizeof(uint8_t));
 	out->channels = (void*)alloc;
 	alloc += PAD_TO_WORD(in->module.num_channels * sizeof(xm_channel_context_t));
-
 	out->module.patterns = (void*)alloc;
 	alloc += PAD_TO_WORD(in->module.num_patterns * sizeof(xm_pattern_t));
 	const xm_pattern_t* pat = (void*)((intptr_t)in + (intptr_t)in->module.patterns);

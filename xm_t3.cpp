@@ -69,6 +69,15 @@ void xm_player_xmize( const char* moddata ){
 	_buffertail = 0;								// We read data from tail
 	_bufferhead = 0;								// We put data in from head (until we reach tail)
 	_bufferavail = 0;								// No samples data available yet
+	
+	// Set up pins
+	analogWriteResolution(12);
+	#ifdef XM_STEREO
+		pinMode ( XM_PIN_L, OUTPUT );
+		pinMode ( XM_PIN_R, OUTPUT );
+	#else
+		pinMode ( XM_PIN_L, OUTPUT );
+	#endif
 }
 void xm_player_xm( const char* moddata, uint32_t moddata_size ){
 	if (_context) return;
@@ -80,6 +89,7 @@ void xm_player_xm( const char* moddata, uint32_t moddata_size ){
 		moddata_size,
 		XM_SAMPLE_RATE
 	);
+	
 	// Create buffer
 	_bufferlen = uint16_t(XM_SAMPLE_RATE / 480);	// Number of sample pairs (L+R)
 	_buffersize = _bufferlen * 2;					// Size of buffer in samples
@@ -87,6 +97,15 @@ void xm_player_xm( const char* moddata, uint32_t moddata_size ){
 	_buffertail = 0;								// We read data from tail
 	_bufferhead = 0;								// We put data in from head (until we reach tail)
 	_bufferavail = 0;								// No samples data available yet
+	
+	// Set up pins
+	analogWriteResolution(12);
+	#ifdef XM_STEREO
+		pinMode ( XM_PIN_L, OUTPUT );
+		pinMode ( XM_PIN_R, OUTPUT );
+	#else
+		pinMode ( XM_PIN_L, OUTPUT );
+	#endif
 }
 
 /**
@@ -100,16 +119,24 @@ void xm_player_exit( void ){
 }
 
 /**
+ * Set global volume
+ **/
+void xm_player_volume( float vol ){
+	if (!_context) return;
+	_context->amplification = vol;
+}
+
+/**
  * Output sample on timer to produce the sound!
  **/
 static void xm_timer_interrupt( void ){
 	// XXX: Is this the correct way to handle empty buffer?
 	//if (!_bufferavail) return;
 	
-	int16_t l_smp = 2048 + (_buffer[_buffertail++] * 20 * 4096);
-	int16_t r_smp = 2048 + (_buffer[_buffertail++] * 20 * 4096);
-	l_smp = l_smp<0?0:l_smp>4095?4095:l_smp; // Clamp to 12 bit range
-	r_smp = r_smp<0?0:r_smp>4095?4095:r_smp; // Clamp to 12 bit range
+	int16_t l_smp = 2048 + (_buffer[_buffertail++] * 2048.0f);
+	int16_t r_smp = 2048 + (_buffer[_buffertail++] * 2048.0f);
+	l_smp = (l_smp<0)?0:(l_smp>4095)?4095:l_smp; // Clamp to 12 bit range
+	r_smp = (r_smp<0)?0:(r_smp>4095)?4095:r_smp; // Clamp to 12 bit range
 	#ifdef XM_STEREO
 		analogWrite( XM_PIN_L, l_smp);
 		analogWrite( XM_PIN_R, r_smp);
@@ -117,7 +144,7 @@ static void xm_timer_interrupt( void ){
 		analogWrite( XM_PIN_L, (l_smp+r_smp)/2.0f );
 	#endif
 
-	if (_buffertail > _buffersize) _buffertail = 0;
+	if (_buffertail >= _buffersize) _buffertail = 0;
 	_bufferavail -= 2;
 }
 
@@ -277,8 +304,11 @@ boolean xm_player_save( const char* filename, xm_savetype_t savetype ){
 	float samplepair[2];
 	f_to_uint32_t sample;
 	uint32_t count;
+	uint32_t frames;
+	uint32_t framesc;
 	
 	// Open file for writing (delete first if exists)
+	Serial.print(F("Opening file\n"));
 	SD.remove( filename );
 	outfile = SD.open(filename, FILE_WRITE);
 	if (!outfile) {
@@ -295,11 +325,16 @@ boolean xm_player_save( const char* filename, xm_savetype_t savetype ){
 				is why we can't write directly to stdout (we need to rewind
 				because module length is hard to know.
 			*/
+			
+			Serial.print(F("Writing WAVE file\n"));
+			
 			outfile.print(F("RIFF"));
+		Serial.printf(F("after RIFF position is %d\n"),outfile.position());
 			write_uint32_le(0, outfile); 				// Chunk size. Will be filled later.
 			outfile.print(F("WAVE"));
+		Serial.printf(F("after WAVE position is %d\n"),outfile.position());
 
-			outfile.print(F("fmt"));					// Start format chunk
+			outfile.print(F("fmt "));					// Start format chunk
 			write_uint32_le(16, outfile);				// Format chunk size
 			write_uint16_le(3, outfile);				// IEEE float sample data
 			#ifdef XM_STEREO
@@ -317,19 +352,34 @@ boolean xm_player_save( const char* filename, xm_savetype_t savetype ){
 			#endif
 			write_uint16_le(8 * sizeof(float), outfile);// wBitsPerSample
 			
+		Serial.print(F("About to write data:\n"));
+			
 			outfile.print(F("data"));					// Start data chunk
 			write_uint32_le(0, outfile);				// Data chunk size. Will be filled later.
 			// Make sure we only do the song once
 			count = 0;
+			frames = 0;
+			framesc = 0;
 			while(!xm_get_loop_count(_context)) {
-				// generate a sampel pair and save the bytes
+				// generate a sample pair and save the bytes
 				xm_generate_samples( _context, samplepair, 1);
 				sample.f = samplepair[0];
-				write_uint32_be(sample.i, outfile);
+				write_uint32_le(sample.i, outfile);
 				sample.f = samplepair[1];
-				write_uint32_be(sample.i, outfile);
+				write_uint32_le(sample.i, outfile);
 				count += 2;
+				
+				frames++;
+				if (frames==48000){
+					framesc++;
+					frames=0;
+					Serial.printf(F("Frame %d count %d\n"),framesc,count);
+				}
 			}
+			
+		Serial.print(F("Seeking back to write size: "));
+		Serial.print(count);
+		Serial.print(F(" float values\n"));
 			
 			// Riff chunk size
 			outfile.seek(4);
@@ -368,13 +418,16 @@ boolean xm_player_save( const char* filename, xm_savetype_t savetype ){
 			write_uint32_be(0, outfile);				// Optional text info
 			
 			// Make sure we only do the song once
-			while(!xm_get_loop_count(_context)) {
+			count = 0;
+			//while(!xm_get_loop_count(_context)) {
+			while(count < 1000000) {
 				// generate a sampel pair and save the bytes
 				xm_generate_samples( _context, samplepair, 1);
 				sample.f = samplepair[0];
 				write_uint32_be(sample.i, outfile);
 				sample.f = samplepair[1];
 				write_uint32_be(sample.i, outfile);
+				count += 2;
 			}
 			
 			break;
@@ -399,6 +452,7 @@ boolean xm_player_save( const char* filename, xm_savetype_t savetype ){
 			break;
 	}
 	
+	Serial.print(F("Closing file\n"));
 	
 	// close the file
     outfile.close();

@@ -43,6 +43,11 @@ void xm_player_xmize( const char* moddata );
 void xm_player_xm( const char* moddata, uint32_t moddata_size );
 
 /**
+ * Set global volume
+ **/
+void xm_player_volume( float vol );
+
+/**
  * Free the mod player (destructor equivalent)
  **/
 void xm_player_exit( void );
@@ -74,6 +79,7 @@ uint16_t xm_player_update( void );
 typedef enum {
 	SAVETYPE_WAV,	// Save song as WAV file
 	SAVETYPE_AU,	// Save song as AU file
+	SAVETYPE_BIN,	// Save samples as 16bit words
 	SAVETYPE_XMIZE,		// Save song as libxmize
 	SAVETYPE_XMIZE_H	// Save song as libxmize data in header file
 } xm_savetype_t;

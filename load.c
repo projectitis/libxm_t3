@@ -270,7 +270,6 @@ char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_leng
 			READ_MEMCPY(instr->name, offset + 4, INSTRUMENT_NAME_LENGTH);
 		#endif
 	    instr->num_samples = READ_U16(offset + 27);
-
 		if(instr->num_samples > 0) {
 			/* Read extra header properties */
 			sample_header_size = READ_U32(offset + 29);

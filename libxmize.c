@@ -80,8 +80,7 @@ void xm_libxmize( const char* moddata, uint32_t moddata_size ){
 		OFFSET(ctx->module.patterns[i].slots);
 	}
 	for(i = 0; i < ctx->module.num_instruments; ++i) {
-		for(j = 0; j < ctx->module.instruments[i].num_samples; ++j) {
-			
+		for(j = 0; j < ctx->module.instruments[i].num_samples; ++j) {		
 			#ifdef XM_LIBXMIZE_DELTA_SAMPLES
 			if(ctx->module.instruments[i].samples[j].length > 1) {
 				// Half-ass delta encoding of samples, this compresses much better
@@ -108,8 +107,8 @@ void xm_libxmize( const char* moddata, uint32_t moddata_size ){
 	
 	// Write libxmized data to Serial
 	sz = xm_get_memory_needed_for_context( moddata, moddata_size );
-	sprintf( outstr, "const uint32_t moddata_len = %u;\n", sz );
-	xm_stdout( outstr );
+	//sprintf( outstr, "const uint32_t moddata_len = %u;\n", sz );
+	//xm_stdout( outstr );
 	xm_stdout("const char moddata[] = {\n");
 	j = 0;
 	ctx_p = (uint8_t*)ctx;

@@ -61,6 +61,8 @@ There are several examples included:
 	
 * **example01_play_xm** Loads and plays an XM module in original format. 106kB of flash and 126kB of RAM used
 * **example02_play_xmize** Loads and plays an XM module in libxmize format. 104kB of flash and 10kB of RAM used
+* **example03_create_libxmize** Shows how to create a libxmized version of an XM mod.
+* **example04_save_as_wav** Saves the XM modle to the SD card as a WAV file.
 
 ## Teensy port details
 
@@ -74,7 +76,7 @@ The following is a list of broad changes to the original code to support the Tee
 
 ### Known bugs
 
-* Playback of a libxmized file is different from playback of the full xm. Working on it.
+* Saving to SD card is slow. Need to optimize this.
 
 ### Todo
 
@@ -99,3 +101,4 @@ This program is free software. It comes without any warranty, to the extent perm
 * [Mod Archive](https://modarchive.org/) - Where all the cool mods live
 * [libxm](https://github.com/Artefact2/libxm) - libxm repo on github
 * [Teensy](https://www.pjrc.com/teensy/) - Teensy microprocessor boards
+* [Dillinger](https://dillinger.io) - Online Markdown editor for this readme

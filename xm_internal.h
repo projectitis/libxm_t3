@@ -290,7 +290,7 @@ struct xm_context_s {
 
 /* ----- Internal API ----- */
 
-#define PAD_TO_WORD(size) ((size + 3) & ~0x03)
+#define PAD_TO_WORD(size) (((size) + 3) & ~0x03)
 
 /** Check the module data for errors/inconsistencies.
  *

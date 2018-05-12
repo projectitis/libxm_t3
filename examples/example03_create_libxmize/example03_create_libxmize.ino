@@ -18,7 +18,7 @@ void setup() {
 	// Open serial for output, then wait a couple of second for it to initialise
 	Serial.begin(9600);
 	delay(2000);
- 	// shooting_star and shooting_star_size are bot defined in shooting_star.h
+ 	// shooting_star and shooting_star_size are both defined in shooting_star.h
  	// Running the including python script xm_to_h.py will generate this header for you
 	xm_libxmize( shooting_star, shooting_star_size );
 }

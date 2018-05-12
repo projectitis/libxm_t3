@@ -31,8 +31,6 @@ typedef struct xm_context_s xm_context_t;
 #define XM_HAS_OWN_STDOUT
 // Defensively check XM data for errors/inconsistencies
 #define XM_DEFENSIVE
-// Use big endian byte order (unfinished)
-//#define XM_BIG_ENDIAN
 // Use linear interpolation (CPU hungry)
 #define XM_LINEAR_INTERPOLATION
 // Enable ramping (smooth volume/panning transitions, CPU hungry)
